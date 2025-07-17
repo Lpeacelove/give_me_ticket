@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 1. 继承Spring Boot的官方Parent，管理了绝大部分依赖的版本 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.2</version> <!-- 选用这个极其稳定的版本 -->
+        <relativePath/>
+    </parent>
+
+    <!-- 2. 父项目自身的信息 -->
+    <groupId>com.lxy</groupId>
+    <artifactId>give_me_ticket</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <!-- 父项目的打包方式必须是 pom -->
+    <packaging>pom</packaging>
+
+    <!-- 3. 定义子模块 -->
+    <modules>
+        <module>gmt_mono</module>
+    </modules>
+
+    <!-- 4. 在<properties>里统一定义我们自己要用的版本号 -->
+    <properties>
+        <java.version>17</java.version>
+        <mybatis-plus.version>3.5.6</mybatis-plus.version>
+        <knife4j.version>4.4.0</knife4j.version>
+        <jjwt.version>0.11.5</jjwt.version>
+    </properties>
+
+    <!-- 5. 使用<dependencyManagement>来统一管理所有子模块可能用到的依赖版本 -->
+    <!-- 注意：这里只是声明版本，子模块需要用才去引入 -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- MyBatis-Plus -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+                <version>${knife4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+</project>

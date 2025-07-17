@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: gmt_mono
+
+  profiles:
+    active: dev
+
+  datasource:
+    url: ${gmt.datasource.url}
+    username: ${gmt.datasource.username}
+    password: ${gmt.datasource.password}
+
+  data:
+    redis:
+      host: ${gmt.redis.host}
+      port: ${gmt.redis.port}
+      password: ${gmt.redis.password}
+      database: ${gmt.redis.database}
+
+  rabbitmq:
+    host: ${gmt.rabbitmq.host}
+    port: ${gmt.rabbitmq.port}
+    username: ${gmt.rabbitmq.username}
+    password: ${gmt.rabbitmq.password}
+
+
+server:
+  port: 8080
+
+knife4j:
+  enable: true
