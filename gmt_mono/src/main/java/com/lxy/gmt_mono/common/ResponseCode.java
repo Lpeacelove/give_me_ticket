@@ -25,7 +25,8 @@ public enum ResponseCode {
     DEDUCT_STOCK_FAILED(10005, "扣减库存失败"),
 
     ORDER_STATUS_ERROR(12001, "订单状态异常，无法进行操作"),
-    PAYMENT_FAILED(12002, "订单支付失败");
+    PAYMENT_FAILED(12002, "订单支付失败"),
+    USER_REPEAT_BUY(12003, "重复购买，订单创建失败");
 
 
 

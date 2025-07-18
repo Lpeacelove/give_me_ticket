@@ -1,0 +1,17 @@
+gmt:
+  dataSource:
+    url: jdbc:mysql://localhost:3306/gmt_mono_data?useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: lxy
+
+  redis:
+    host: localhost
+    port: 6379
+    password: lxy
+    database: 0
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest

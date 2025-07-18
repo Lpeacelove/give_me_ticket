@@ -2,6 +2,8 @@ package com.lxy.gmt_mono.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lxy.gmt_mono.common.BusinessException;
+import com.lxy.gmt_mono.common.ResponseCode;
 import com.lxy.gmt_mono.config.RabbitMQConfig;
 import com.lxy.gmt_mono.dto.OrderCreateRequest;
 import com.lxy.gmt_mono.dto.OrderMessage;
@@ -12,9 +14,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 
 @Service
@@ -22,6 +27,7 @@ import java.util.UUID;
 public class SecKillServiceImpl implements SecKillService{
 
     private static final String TICKET_STOCK_KEY_PREFIX = "ticket:stock:";
+    private static final String SECKILL_USER_SET_KEY_PREFIX = "seckill:ticket:users";
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -31,6 +37,8 @@ public class SecKillServiceImpl implements SecKillService{
     private ObjectMapper objectMapper;
     @Autowired
     private TicketMapper ticketMapper;
+    @Autowired
+    private RedisScript<Long> redisScript;
 
     /**
      * 秒杀
@@ -44,38 +52,53 @@ public class SecKillServiceImpl implements SecKillService{
 
         Long ticketId = request.getTicketId();
         Integer quantity = request.getQuantity();
-        String orderNumber = null;
 
-        // 1. 构造缓存键
+        // 1. 准备Lua脚本需要的缓存键
         String stockKey = TICKET_STOCK_KEY_PREFIX + ticketId;
+        String userSetKey = SECKILL_USER_SET_KEY_PREFIX + ticketId;
 
-        // 2. 使用redis的DECR命令，减库存
-        Long remainingStock = stringRedisTemplate.opsForValue().decrement(stockKey, quantity);
+        // 2. 执行Lua脚本
+        Long result = stringRedisTemplate.execute(
+                redisScript,
+                Collections.list(Collections.enumeration(Arrays.asList(stockKey, userSetKey))),
+                String.valueOf(userId),
+                String.valueOf(quantity)
+        );
 
-        // 3. 判断扣除是否成功
-        if (remainingStock != null && remainingStock >= 0) {
-            log.info("秒杀成功，用户id: {}, 秒杀的票务id: {}", userId, ticketId);
-            // 3.1 秒杀成功，发送消息到MQ
-            orderNumber = UUID.randomUUID().toString().replace("-", "");
-            OrderMessage orderMessage = new OrderMessage(userId, ticketId, quantity, orderNumber);
-            try {
-                String message = objectMapper.writeValueAsString(orderMessage);
-                rabbitTemplate.convertAndSend(
-                        RabbitMQConfig.ORDER_EXCHANGE,
-                        RabbitMQConfig.ORDER_ROUTING_KEY,
-                        message
-                );
-            } catch (JsonProcessingException e) {
-                log.error("订单创建失败：{}", e.getMessage());
-                stringRedisTemplate.opsForValue().increment(stockKey, quantity);
-            }
-        } else {
-            if (remainingStock != null) {
-                log.info("库存不足，用户id: {}, 秒杀的票务id: {}", userId, ticketId);
-                // 将库存恢复
-                stringRedisTemplate.opsForValue().increment(stockKey, quantity);
-            }
-            log.info("秒杀失败，用户id: {}, 秒杀的票务id: {}", userId, ticketId);
+        // 3. 判断脚本执行结果
+        if (result == null) {
+            log.error("秒杀失败，请稍后再试");
+            return null;
+        }
+        if (result == -1L) {
+            log.error("用户{} 重复购买，操作被拒绝。", userId);
+            // 抛出业务异常
+            throw new BusinessException(ResponseCode.USER_REPEAT_BUY, "您已经抢购过了，请勿重复下单");
+        }
+        if (result == 0L) {
+            log.error("库存不足，请稍后再试");
+            return null;
+        }
+
+        // 4. 执行成功
+        log.info("秒杀成功，用户id: {}, 秒杀的票务id: {}", userId, ticketId);
+        // 4.1 秒杀成功，发送消息到MQ
+        String orderNumber = UUID.randomUUID().toString().replace("-", "");
+        OrderMessage orderMessage = new OrderMessage(userId, ticketId, quantity, orderNumber);
+        try {
+            String message = objectMapper.writeValueAsString(orderMessage);
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.ORDER_EXCHANGE,
+                    RabbitMQConfig.ORDER_ROUTING_KEY,
+                    message
+            );
+        } catch (JsonProcessingException e) {
+            log.error("订单创建失败：{}", e.getMessage());
+            // 如果发送MQ失败，则将库存加回Redis
+            stringRedisTemplate.opsForValue().increment(stockKey, quantity);
+            // 并且把用户从已购集合中移除
+            stringRedisTemplate.opsForSet().remove(userSetKey, String.valueOf(userId));
+            throw new BusinessException(ResponseCode.DEDUCT_STOCK_FAILED, "秒杀失败");
         }
         return orderNumber;
     }
