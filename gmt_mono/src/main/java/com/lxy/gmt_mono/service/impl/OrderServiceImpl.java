@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +42,16 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private PaymentService paymentService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    private static final String TICKET_STOCK_KEY_PREFIX = "ticket:stock:";
+
+    /**
+     * 只是负责创建订单
+     *
+     * @param orderMessage 订单信息
+     */
     @Override
     @Transactional
     public void createOrder(OrderMessage orderMessage) {
@@ -127,41 +138,109 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public void payOrder(String orderNumber, Long userId) {
+    public String payOrder(String orderNumber, Long userId) {
+        // 订单校验的逻辑已经在createPayment中实现了
+        // 状态更新的逻辑，将会在回调处理器中实现
+        // 这里只负责调用支付服务创建支付链接
+        return paymentService.createPayment(orderNumber, userId);
+    }
+
+    /**
+     * 订单关闭处理
+     * 监听死信处理队列，处理订单关闭逻辑
+     *
+     * @param orderNumber 订单号
+     */
+    @Override
+    @RabbitListener(queues = RabbitMQConfig.ORDER_RELEASE_QUEUE)
+    public void handleOrderClose(String orderNumber) {
+        log.info("订单关闭处理，订单号：{}", orderNumber);
+
+        try{
+            this.closeOvertimeOrder(orderNumber);
+        } catch (Exception e) {
+            log.error("订单关闭处理失败：{}", e.getMessage());
+        }
+
+    }
+
+    @Override
+    @Transactional
+    public void closeOvertimeOrder(String orderNumber) {
         // 1. 获取订单信息
+        LambdaUpdateWrapper<Order> queryWrapper = new LambdaUpdateWrapper<>();
+        queryWrapper.eq(Order::getOrderNumber, orderNumber);
+        Order order = orderMapper.selectOne(queryWrapper);
+
+        // 2. 判断该订单是否存在
+        if (order == null) {
+            log.warn("超时订单不存在，无需处理，订单号：{}", orderNumber);
+            return;
+        }
+
+        // 3. 判断订单是否已支付
+        if (order.getStatus() == 0) {
+            log.warn("订单未支付，订单号：{}", orderNumber);
+            // 3.1 将订单状态更新为已取消
+            Order updateOrder = new Order();
+            updateOrder.setId(order.getId());
+            updateOrder.setStatus(2);
+            updateOrder.setCancelOrderTime(LocalDateTime.now());
+            updateOrder.setUpdateTime(LocalDateTime.now());
+            orderMapper.updateById(updateOrder);
+            // 3.2 回补库存
+            String stockKey = TICKET_STOCK_KEY_PREFIX + order.getTicketId();
+            stringRedisTemplate.opsForValue().increment(stockKey, order.getQuantity());
+            log.info("订单由于超时，取消成功，订单号：{}，补充库存: {}", orderNumber, order.getQuantity());
+        } else {
+            log.info("订单状态为[{}],已经变更过，无需处理", order.getStatus());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void cancelOrder(String orderNumber, Long userId) {
+        // 1. 查询订单并进行归属权和存在性检验
         Order order = getOrderDetailById(orderNumber, userId);
 
-        // 2. 获取订单状态
-        Integer status = order.getStatus();
-        if (status != 0) {
+        // 2. 判断订单状态
+        if (order.getStatus() != 0) {
             throw new BusinessException(ResponseCode.ORDER_STATUS_ERROR, "订单已支付或已取消，请勿重复操作");
         }
 
-        // 3. 模拟调用第三方支付接口
-        boolean paySuccess = paymentService.processPayment(order);
-        if (!paySuccess) {
-            throw new BusinessException(ResponseCode.PAYMENT_FAILED, "支付失败");
+        // 3. 取消订单
+        Order updateOrder = new Order();
+        updateOrder.setId(order.getId());
+        updateOrder.setStatus(2);
+        updateOrder.setCancelOrderTime(LocalDateTime.now());
+        int updateCount = orderMapper.updateById(updateOrder);
+        if (updateCount == 0) {
+            throw new BusinessException(ResponseCode.INTERNAL_SERVER_ERROR, "订单取消失败，请检查订单状态");
         }
 
-        // 4. 更新订单状态
+        // 4. 回补库存
+        String stockKey = TICKET_STOCK_KEY_PREFIX + order.getTicketId();
+        stringRedisTemplate.opsForValue().increment(stockKey, order.getQuantity());
+        log.info("订单取消成功，订单号：{}，补充库存: {}", orderNumber, order.getQuantity());
+    }
+
+    @Override
+    public void processPaidOrder(String orderNumber) {
+        // 这个方法是被异步调用的，因此也需要幂等性
         LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper
                 .set(Order::getStatus, 1)
                 .set(Order::getPayTime, LocalDateTime.now())
-                .set(Order::getUpdateTime, LocalDateTime.now())
                 .eq(Order::getOrderNumber, orderNumber)
-                .eq(Order::getUserId, userId)
                 .eq(Order::getStatus, 0);
         int updateCount = orderMapper.update(null, updateWrapper);
-
-        // 5. 判断更新结果
         if (updateCount == 0) {
-            log.warn("订单支付成功，但更新订单状态失败，请检查订单状态");
-            throw new BusinessException(ResponseCode.ORDER_STATUS_ERROR, "订单支付成功，但更新订单状态失败，请检查订单状态");
+            log.warn("支付宝回调：订单支付成功，但订单状态未更新，订单号：{}", orderNumber);
+        } else {
+            log.info("支付宝回调：订单支付成功，订单号：{}", orderNumber);
         }
 
-        log.info("订单支付成功，订单号：{}", orderNumber);
-
-        // todo 支付成功后，还可以发送消息给MQ，通知其他系统（发货、积分等）
     }
+
+
 }

@@ -5,10 +5,11 @@ import com.lxy.gmt_mono.entity.Order;
 public interface PaymentService {
 
     /**
-     * 处理支付
+     * 创建一次支付请求，并返回支付凭证（如支付HTML）
      *
-     * @param order 待支付订单
-     * @return 处理结果
+     * @param orderNumber 订单号
+     * @param userId      用户ID
+     * @return 支付宝支付页面的完整HTML内容
      */
-    boolean processPayment(Order order);
+    String createPayment(String orderNumber, Long userId);
 }

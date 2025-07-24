@@ -19,6 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity  // 启用Spring Security的功能
+
 public class SecurityConfig {
 
     @Autowired
@@ -45,36 +46,17 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-//        http
-//                .authorizeHttpRequests(auth -> auth
-//                        // 1. 放行静态资源
-//                        .requestMatchers("/doc.html", "/webjars/**", "/swagger-resources/**", "/v3/api-docs/**").permitAll()
-//
-//                        // 2. 放行游客访问的票务接口
-//                        .requestMatchers(HttpMethod.GET, "/api/v1/tickets/**").permitAll()
-//
-//                        // 3. 放行用户注册/登录
-//                        .requestMatchers("/api/v1/user/register", "/api/v1/user/login").permitAll()
-//
-//                        // 4. 管理员权限接口
-////                        .requestMatchers("/admin/api/**").hasRole("ADMIN")
-//                        // 暂时放开管理员接口
-//                        .requestMatchers("/admin/api/**").permitAll()
-//
-//                        // 5. 所有用户端接口需认证
-//                        .requestMatchers("/api/**").authenticated()
-//
-//                        // 6. 默认拒绝
-//                        .anyRequest().denyAll()
-//                )
         http
                 // 1. 禁用CSRF
                 .csrf(csrf -> csrf.disable())
+                .httpBasic(httpBasic -> httpBasic.disable())
 
                 // 2. 【核心修改】明确设置会话管理策略为“无状态”(STATELESS)
                 // 这对于JWT认证至关重要，它告诉Spring Security不要创建HttpSession
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+//                .authorizeHttpRequests(auth -> auth
+//                        .anyRequest().permitAll())
                 // 3. 配置URL授权规则（【核心修改】调整顺序）
                 .authorizeHttpRequests(auth -> auth
                         // a. 将最具体的、需要放行的路径放在最前面
@@ -84,7 +66,8 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/v3/api-docs/**",
                                 "/api/v1/user/register",
-                                "/api/v1/user/login"
+                                "/api/v1/user/login",
+                                "/api/v1/payments/alipay/notify"
                         ).permitAll()
 
                         // b. 对于票务列表的GET请求，也放行

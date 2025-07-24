@@ -30,7 +30,7 @@ public class Order {
     private LocalDateTime createTime;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updateTime;
-    private Integer status; // 订单状态: 0: 待支付 1: 已支付 2: 已取消 3: 已完成 -1: 支付失败
+    private Integer status; // 订单状态: 0: 待支付 1: 已支付 2: 已取消 3: 已完成
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime payTime;
 }

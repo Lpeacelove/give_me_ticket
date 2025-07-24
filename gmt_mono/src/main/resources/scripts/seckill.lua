@@ -12,13 +12,13 @@ if redis.call('sismember', KEYS[2], ARGV[1]) == 1 then
 end
 
 -- 2. 获取当前库存
-local stock = redis.call('get', KEYS[1])
-if not stock or tonumber(stock) < tonumber(ARGV[2]) then
+local stock = tonumber(redis.call('get', KEYS[1]))
+if (stock == nil or stock < tonumber(ARGV[2])) then
     return 0 -- 0 表示库存不足
 end
 
 -- 3. 扣减库存
-local remainingStock = redis.call('decrby', KEYS[1], ARGV[2])
+local remainingStock = redis.call('decrby', KEYS[1], tonumber(ARGV[2]))
 
 -- 4. 将用户ID添加到已购集合中
 redis.call('sadd', KEYS[2], ARGV[1])

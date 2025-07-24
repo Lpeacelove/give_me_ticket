@@ -34,8 +34,35 @@ public interface OrderService {
 
     /**
      * 支付订单
+     *
+     * @param orderNumber 订单ID
+     * @param userId      用户ID
+     * @return 返回调用支付后需要跳转的前端页面链接
+     */
+    String payOrder(String orderNumber, Long userId);
+
+    /**
+     * 处理关闭订单服务
+     * @param orderNumber 订单ID
+     */
+    void handleOrderClose(String orderNumber);
+
+    /**
+     * 关闭超时订单
+     * @param orderNumber 订单ID
+     */
+    void closeOvertimeOrder(String orderNumber);
+
+    /**
+     * 取消订单
      * @param orderNumber 订单ID
      * @param userId  用户ID
      */
-    void payOrder(String orderNumber, Long userId);
+    void cancelOrder(String orderNumber, Long userId);
+
+    /**
+     * 处理已支付的订单服务
+     * @param orderNumber 订单ID
+     */
+    void processPaidOrder(String orderNumber);
 }

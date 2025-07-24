@@ -3,6 +3,7 @@ package com.lxy.gmt_mono.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lxy.gmt_mono.common.BusinessException;
+import com.lxy.gmt_mono.common.IdGenerator;
 import com.lxy.gmt_mono.common.ResponseCode;
 import com.lxy.gmt_mono.config.RabbitMQConfig;
 import com.lxy.gmt_mono.dto.OrderCreateRequest;
@@ -20,7 +21,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.UUID;
 
 @Service
 @Slf4j
@@ -39,6 +39,8 @@ public class SecKillServiceImpl implements SecKillService{
     private TicketMapper ticketMapper;
     @Autowired
     private RedisScript<Long> redisScript;
+    @Autowired
+    private IdGenerator idGenerator;
 
     /**
      * 秒杀
@@ -83,7 +85,7 @@ public class SecKillServiceImpl implements SecKillService{
         // 4. 执行成功
         log.info("秒杀成功，用户id: {}, 秒杀的票务id: {}", userId, ticketId);
         // 4.1 秒杀成功，发送消息到MQ
-        String orderNumber = UUID.randomUUID().toString().replace("-", "");
+        String orderNumber = idGenerator.nextIdStr();
         OrderMessage orderMessage = new OrderMessage(userId, ticketId, quantity, orderNumber);
         try {
             String message = objectMapper.writeValueAsString(orderMessage);
@@ -92,6 +94,14 @@ public class SecKillServiceImpl implements SecKillService{
                     RabbitMQConfig.ORDER_ROUTING_KEY,
                     message
             );
+            log.info("发送订单创建消息成功：{}", message);
+            // 在发送创建订单消息的同时，发送一条延迟消息，用于自动关单
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.ORDER_EXCHANGE,
+                    RabbitMQConfig.ORDER_DELAY_ROUTING_KEY,
+                    orderNumber
+            );
+            log.info("发送订单延迟消息成功：{}", orderNumber);
         } catch (JsonProcessingException e) {
             log.error("订单创建失败：{}", e.getMessage());
             // 如果发送MQ失败，则将库存加回Redis

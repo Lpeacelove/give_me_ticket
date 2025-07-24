@@ -30,6 +30,10 @@
         <mybatis-plus.version>3.5.6</mybatis-plus.version>
         <knife4j.version>4.4.0</knife4j.version>
         <jjwt.version>0.11.5</jjwt.version>
+        <hutool.version>5.8.26</hutool.version>
+        <spring-cloud.version>2022.0.4</spring-cloud.version>
+        <spring-cloud-alibaba.version>2022.0.0.0</spring-cloud-alibaba.version>
+        <alipay.version>4.35.158.ALL</alipay.version>
     </properties>
 
     <!-- 5. 使用<dependencyManagement>来统一管理所有子模块可能用到的依赖版本 -->
@@ -64,6 +68,30 @@
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt-jackson</artifactId>
                 <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.alipay.sdk</groupId>
+                <artifactId>alipay-sdk-java</artifactId>
+                <version>${alipay.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

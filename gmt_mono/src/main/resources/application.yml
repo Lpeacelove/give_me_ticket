@@ -23,9 +23,21 @@ spring:
     username: ${gmt.rabbitmq.username}
     password: ${gmt.rabbitmq.password}
 
+  cloud:
+    sentinel:
+      transport:
+        dashboard: ${gmt.sentinel.transport.dashboard}
+        port: ${gmt.sentinel.transport.port}
 
 server:
   port: 8080
 
 knife4j:
   enable: true
+
+alipay:
+  app-id: ${gmt.alipay.app-id}
+  app-private-key: ${gmt.alipay.app-private-key}
+  alipay-public-key: ${gmt.alipay.alipay-public-key}
+  notify-url: ${gmt.alipay.notify-url}
+  return-url: ${gmt.alipay.return-url}

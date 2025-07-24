@@ -13,6 +13,7 @@ public enum ResponseCode {
     UNAUTHORIZED(401, "需要认证"),
     FORBIDDEN(403, "无权访问"),
     NOT_FOUND(404, "资源不存在"),
+    TOO_MANY_REQUESTS(429, "请求过于频繁，请稍后再试"),
 
     // --- 服务端错误(5xx) ---
     INTERNAL_SERVER_ERROR(500, "系统开小差了，请稍后再试~"),

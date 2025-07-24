@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,14 +14,18 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * JWT认证过滤器
  */
 @Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
@@ -28,6 +33,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private UserDetailsService userDetailsService;
+
+    // ------------- 白名单和路径匹配器 -----------------
+    // 创建一个路径匹配器实例，用于支持通配符匹配
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    // 定义一个白名单列表，这里的路径应该和SecurityConfig中permitAll()的路径保持一致
+    private final List<String> whiteList = Arrays.asList(
+            "/doc.html",
+            "/webjars/**",
+            "/swagger-resources/**",
+            "/v3/api-docs/**",
+            "/api/v1/user/register",
+            "/api/v1/user/login",
+            "/admin/api/**",
+            "/favicon.ico",
+            "/api/v1/payments/alipay/notify"
+    );
 
     /**
      * 拦截请求，进行JWT认证
@@ -37,8 +59,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
+        // 0. 获取请求头的uri
+        String requestURI = request.getRequestURI();
+
         // 1. 从请求中获取Authentication字段
-        final String authHeader = request.getHeader("Authentication");
+        final String authHeader = request.getHeader("Authorization");
 
         // 2. 如果请求头中没有Authentication字段，或者Authentication字段的值不是以Bearer开头，则直接放行
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -80,5 +105,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // 11. 无论如何，放行请求
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * 重写这个方法，告诉SpringSecurity那些请求根本不需要经过这个JWT过滤器
+     * @param request 当前的HTTP请求
+     * @return true 表示不需要过滤，false 表示需要过滤
+     * @throws ServletException 抛出ServletException
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        // 1. 获取当前请求的URI路径
+        String path = request.getRequestURI();
+
+        // 2. 检查这个路径是否匹配上我们白名单中的任何一个模式
+        boolean shouldNotFilter = whiteList.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+
+        // 3. 打印一条日志，方便调试，看看它对每个请求的决策是什么
+        if (shouldNotFilter) {
+            log.info("JwtAuthenticationFilter:请求 [{}] 在白名单中，跳过JWT校验", path);
+        }
+        return shouldNotFilter;
     }
 }
