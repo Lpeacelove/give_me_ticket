@@ -14,6 +14,7 @@ import com.lxy.gmt_mono.service.SecKillService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,8 @@ public class SecKillServiceImpl implements SecKillService{
 
     private static final String TICKET_STOCK_KEY_PREFIX = "ticket:stock:";
     private static final String SECKILL_USER_SET_KEY_PREFIX = "seckill:ticket:users";
+    private static final String ORDER_TOKEN_PREFIX = "order:token:";
+
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -38,9 +41,30 @@ public class SecKillServiceImpl implements SecKillService{
     @Autowired
     private TicketMapper ticketMapper;
     @Autowired
-    private RedisScript<Long> redisScript;
+    @Qualifier("seckillScript")
+    private RedisScript<Long> seckillScript;
+    @Autowired
+    @Qualifier("checkTokenScript")
+    private RedisScript<Boolean> checkToeknScript;
     @Autowired
     private IdGenerator idGenerator;
+
+    @Override
+    public String executeSecKillWithToken(Long userId, OrderCreateRequest request) {
+        // 1. 执行防重令牌校验
+        String tokenKey = ORDER_TOKEN_PREFIX + userId;
+        String token = request.getToken();
+        Boolean tokenValid = stringRedisTemplate.execute(
+                checkToeknScript,
+                Collections.singletonList(tokenKey),
+                token
+        );
+        if (!tokenValid) {
+            throw new BusinessException(ResponseCode.TOKEN_INVALID, "请勿重复提交订单或令牌已失效");
+        }
+        // 2. 令牌校验成功，调用后续秒杀逻辑
+        return executeSecKill(userId, request);
+    }
 
     /**
      * 秒杀
@@ -52,6 +76,7 @@ public class SecKillServiceImpl implements SecKillService{
     @Override
     public String executeSecKill(Long userId, OrderCreateRequest request) {
 
+        // 调用包含令牌校验和秒杀逻辑的新方法
         Long ticketId = request.getTicketId();
         Integer quantity = request.getQuantity();
 
@@ -61,7 +86,7 @@ public class SecKillServiceImpl implements SecKillService{
 
         // 2. 执行Lua脚本
         Long result = stringRedisTemplate.execute(
-                redisScript,
+                seckillScript,
                 Collections.list(Collections.enumeration(Arrays.asList(stockKey, userSetKey))),
                 String.valueOf(userId),
                 String.valueOf(quantity)

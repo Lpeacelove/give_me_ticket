@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,6 +48,8 @@ public class OrderServiceImpl implements OrderService {
     private StringRedisTemplate stringRedisTemplate;
 
     private static final String TICKET_STOCK_KEY_PREFIX = "ticket:stock:";
+    private static final String SECKILL_USER_SET_KEY_PREFIX = "seckill:ticket:users";
+    private static final String ORDER_TOKEN_PREFIX = "order:token:";
 
     /**
      * 只是负责创建订单
@@ -192,6 +196,10 @@ public class OrderServiceImpl implements OrderService {
             String stockKey = TICKET_STOCK_KEY_PREFIX + order.getTicketId();
             stringRedisTemplate.opsForValue().increment(stockKey, order.getQuantity());
             log.info("订单由于超时，取消成功，订单号：{}，补充库存: {}", orderNumber, order.getQuantity());
+            // 3.3 删除用户已购集合
+            String userSetKey = SECKILL_USER_SET_KEY_PREFIX + order.getTicketId();
+            stringRedisTemplate.opsForSet().remove(userSetKey, String.valueOf(order.getUserId()));
+            log.info("订单由于超时，取消成功，订单号：{}，删除用户已购集合: {}", orderNumber, order.getUserId());
         } else {
             log.info("订单状态为[{}],已经变更过，无需处理", order.getStatus());
         }
@@ -222,6 +230,11 @@ public class OrderServiceImpl implements OrderService {
         String stockKey = TICKET_STOCK_KEY_PREFIX + order.getTicketId();
         stringRedisTemplate.opsForValue().increment(stockKey, order.getQuantity());
         log.info("订单取消成功，订单号：{}，补充库存: {}", orderNumber, order.getQuantity());
+
+        // 5. 删除redis中该用户购买当前票务的缓存
+        String userSetKey = SECKILL_USER_SET_KEY_PREFIX + order.getTicketId();
+        stringRedisTemplate.opsForSet().remove(userSetKey, String.valueOf(userId));
+        log.info("关闭订单：删除redis中该用户购买当前票务的缓存，用户id：{}", userId);
     }
 
     @Override
@@ -240,6 +253,15 @@ public class OrderServiceImpl implements OrderService {
             log.info("支付宝回调：订单支付成功，订单号：{}", orderNumber);
         }
 
+    }
+
+    @Override
+    public String getOrderToken(Long userId) {
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String tokenKey = ORDER_TOKEN_PREFIX + userId;
+        stringRedisTemplate.opsForValue().set(tokenKey, token, 5, TimeUnit.MINUTES); // 5min
+        log.info("生成下单防重令牌成功，令牌：{}", token);
+        return token;
     }
 
 

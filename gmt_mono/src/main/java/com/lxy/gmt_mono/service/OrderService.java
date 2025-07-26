@@ -65,4 +65,11 @@ public interface OrderService {
      * @param orderNumber 订单ID
      */
     void processPaidOrder(String orderNumber);
+
+    /**
+     * 获取下单防重令牌
+     * @return 令牌
+     */
+    String getOrderToken(Long userId);
+
 }

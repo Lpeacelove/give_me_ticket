@@ -9,7 +9,7 @@ import org.springframework.scripting.support.ResourceScriptSource;
 @Configuration
 public class RedisScriptConfig {
 
-    @Bean
+    @Bean("seckillScript")
     public DefaultRedisScript<Long> seckillScript() {
         DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
         // 设置脚本的源文件
@@ -18,6 +18,16 @@ public class RedisScriptConfig {
                         new ClassPathResource("scripts/seckill.lua")));
         // 设置脚本的返回值类型，因为lua脚本返回的是一个Long类型的值
         redisScript.setResultType(Long.class);
+        return redisScript;
+    }
+
+    @Bean("checkTokenScript")
+    public DefaultRedisScript<Boolean> checkTokenScript() {
+        DefaultRedisScript<Boolean> redisScript = new DefaultRedisScript<>();
+        redisScript.setScriptSource(
+                new ResourceScriptSource(
+                        new ClassPathResource("scripts/check_and_del_token.lua")));
+        redisScript.setResultType(Boolean.class);
         return redisScript;
     }
 }

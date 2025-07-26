@@ -5,6 +5,15 @@ import com.lxy.gmt_mono.dto.OrderCreateRequest;
 public interface SecKillService {
 
     /**
+     * 用户端-执行秒杀操作携带防重令牌
+     *
+     * @param userId  用户id
+     * @param request 订单创建请求
+     * @return 秒杀结果
+     */
+    String executeSecKillWithToken(Long userId, OrderCreateRequest request);
+
+    /**
      * 用户端-执行秒杀操作
      *
      * @param userId  用户id

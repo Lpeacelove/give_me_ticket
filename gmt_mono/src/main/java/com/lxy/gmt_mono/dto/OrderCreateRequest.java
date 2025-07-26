@@ -14,4 +14,6 @@ public class OrderCreateRequest {
     private Long ticketId;
     @Schema(description = "购买数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer quantity = 1;
+    @Schema(description = "订单防重令牌", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String token;
 }

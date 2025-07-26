@@ -27,7 +27,8 @@ public enum ResponseCode {
 
     ORDER_STATUS_ERROR(12001, "订单状态异常，无法进行操作"),
     PAYMENT_FAILED(12002, "订单支付失败"),
-    USER_REPEAT_BUY(12003, "重复购买，订单创建失败");
+    USER_REPEAT_BUY(12003, "重复购买，订单创建失败"),
+    TOKEN_INVALID(12004, "下单令牌无效");
 
 
 

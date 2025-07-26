@@ -30,6 +30,15 @@ public class OrderController {
     @Autowired
     private OrderService orderService;
 
+    @GetMapping("/token")
+    @Operation(summary = "获取下单防重令牌", description = "在进入下单确认前调用，令牌有效时间5min")
+    public Result<String> getOrderToken() {
+        // 获取当前用户id
+        Long userId = SecurityUtils.getCurrentUserId();
+        String orderToken = orderService.getOrderToken(userId);
+        return Result.success(orderToken);
+    }
+
     /**
      * 创建订单
      *
@@ -45,7 +54,7 @@ public class OrderController {
         if (userId == null) {
             return Result.error(ResponseCode.FORBIDDEN);
         }
-        String orderNumber = secKillService.executeSecKill(userId, request);
+        String orderNumber = secKillService.executeSecKillWithToken(userId, request);
         return Result.success(orderNumber);
     }
 
