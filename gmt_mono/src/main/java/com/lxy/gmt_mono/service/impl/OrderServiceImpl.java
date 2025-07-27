@@ -1,6 +1,8 @@
 package com.lxy.gmt_mono.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,14 +17,18 @@ import com.lxy.gmt_mono.mapper.OrderMapper;
 import com.lxy.gmt_mono.service.OrderService;
 import com.lxy.gmt_mono.service.PaymentService;
 import com.lxy.gmt_mono.service.TicketService;
+import com.rabbitmq.client.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -85,17 +91,37 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @RabbitListener(queues = RabbitMQConfig.ORDER_QUEUE)
-    public void createOrderByMessage(String jsonMessage) {
+    public void createOrderByMessage(String jsonMessage, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
         log.info("收到消息：{}", jsonMessage);
+
         try {
             OrderMessage orderMessage = objectMapper.readValue(jsonMessage, OrderMessage.class);
-            createOrder(orderMessage);
-        } catch (JsonProcessingException e) {
-            log.error("反序列化订单消息失败", e);
-            // todo 需要考虑如何处理这种毒信（无法解析的消息），比如存到死信队列
+
+            // 幂等性检查：查看该订单是否已经存在
+            Order order = orderMapper.selectOne(new LambdaQueryWrapper<Order>()
+                    .eq(Order::getOrderNumber, orderMessage.getOrderNumber()));
+            if (order != null) {
+                log.info("订单已存在，忽略该消息");
+                channel.basicAck(deliveryTag, false);
+                return;
+            }
+
+            // 调用带有事务的创建订单方法
+            this.createOrder(orderMessage);
+            log.info("订单创建成功：{}", orderMessage.getOrderNumber());
+            channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
             log.error("异步创建订单时发生未知错误: message={}", jsonMessage, e);
-            // todo 这里也需要有补偿机制，比如记录失败日志，人工干预等
+            try {
+                // 用basicNack拒绝消息
+                // 参数1：消息的唯一索引
+                // 参数2：只拒绝当前这一条
+                // 参数3：不要把错误消息重新放回队列，这样的话就会丢给死信队列
+                channel.basicNack(deliveryTag, false, false);
+                log.error("订单创建失败，已NACK，消息将被发送给死信队列：{}", jsonMessage);
+            } catch (IOException ex) {
+                log.error("异步创建订单时发生未知错误，NACK失败：{}", jsonMessage, ex);
+            }
         }
     }
 

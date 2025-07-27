@@ -1,5 +1,5 @@
 gmt:
-  dataSource:
+  datasource:
     url: jdbc:mysql://localhost:3306/gmt_mono_data?useSSL=false&serverTimezone=Asia/Shanghai
     username: root
     password: lxy
@@ -15,6 +15,22 @@ gmt:
     port: 5672
     username: guest
     password: guest
+
+    listener:
+      simple:
+        # 开启消费者手动确认模式
+        acknowledge-mode: manual
+        # 开启重试
+        retry:
+          enabled: true
+          # 初始重试间隔
+          initial-interval: 1000ms
+          # 最大重试次数
+          max-attempts: 3
+          # 最大间隔
+          max-interval: 10000ms
+          # 间隔乘数
+          multiplier: 2
 
   sentinel:
     transport:

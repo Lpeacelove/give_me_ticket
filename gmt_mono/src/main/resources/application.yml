@@ -22,6 +22,15 @@ spring:
     port: ${gmt.rabbitmq.port}
     username: ${gmt.rabbitmq.username}
     password: ${gmt.rabbitmq.password}
+    listener:
+      simple:
+        acknowledge-mode: ${gmt.rabbitmq.listener.simple.acknowledge-mode}
+        retry:
+          enabled: ${gmt.rabbitmq.listener.simple.retry.enabled}
+          initial-interval: ${gmt.rabbitmq.listener.simple.retry.initial-interval}
+          max-attempts: ${gmt.rabbitmq.listener.simple.retry.max-attempts}
+          max-interval: ${gmt.rabbitmq.listener.simple.retry.max-interval}
+          multiplier: ${gmt.rabbitmq.listener.simple.retry.multiplier}
 
   cloud:
     sentinel:

@@ -43,7 +43,6 @@ public class IdGenerator {
         // 3. 【核心】使用Hutool的Snowflake构造函数，现在我们传入的是绝对合法的ID
         this.snowflake = new Snowflake(workerId, datacenterId);
 
-        System.out.println("当前机器的雪花算法 datacenterId: " + datacenterId + ", workerId: " + workerId);
     }
 
     /**

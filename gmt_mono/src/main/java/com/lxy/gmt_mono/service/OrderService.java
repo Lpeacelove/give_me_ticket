@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lxy.gmt_mono.dto.OrderListResponse;
 import com.lxy.gmt_mono.dto.OrderMessage;
 import com.lxy.gmt_mono.entity.Order;
+import com.rabbitmq.client.Channel;
+import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.messaging.handler.annotation.Header;
 
 public interface OrderService {
 
@@ -11,9 +14,10 @@ public interface OrderService {
 
     /**
      * 通过消息队列创建订单
-     * @param message 消息队列中的消息
+     * @param jsonMessage 消息队列中的消息
+     *
      */
-    void createOrderByMessage(String message);
+    void createOrderByMessage(String jsonMessage, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag);
 
     /**
      * 获取用户订单列表

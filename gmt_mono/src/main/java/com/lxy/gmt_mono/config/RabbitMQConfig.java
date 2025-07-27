@@ -11,25 +11,24 @@ import java.util.Map;
 public class RabbitMQConfig {
 
     // --------------- 订单服务创建订单的队列和交换机 ------------------------
-    // 交换机的名字
     public static final String ORDER_EXCHANGE = "order.exchange";
-    // 队列的名字
     public static final String ORDER_QUEUE = "order.queue";
-    // 路由的key
     public static final String ORDER_ROUTING_KEY = "order.create";
 
     // --------------- 订单超时自动关单的队列和交换机 ------------------------
     // 死信交换机
     public static final String ORDER_DLX_EXCHANGE = "order.dlx.exchange";
-    // 真正处理关单的队列
     public static final String ORDER_RELEASE_QUEUE = "order.release.queue";
-    // 死信路由的key
     public static final String ORDER_RELEASE_ROUTING_KEY = "order.release";
-
     // 延迟队列
     public static final String ORDER_DELAY_QUEUE = "order.delay.queue";
-    // 延迟队列和创建订单的队列进行绑定
     public static final String ORDER_DELAY_ROUTING_KEY = "order.delay";
+
+
+    // -------------- 创建订单的死信队列和交换机 ----------------------------
+    public static final String ORDER_CREATE_DLX_EXCHANGE = "order.create.dlx.exchange";
+    public static final String ORDER_CREATE_DEAD_QUEUE = "order.create.dead.queue";
+    public static final String ORDER_CREATE_DEAD_ROUTING_KEY = "order.create.dead";
 
     /**
      * 声明一个主题类型的交换机，非常灵活，可以根据路由键进行复杂的匹配
@@ -43,11 +42,18 @@ public class RabbitMQConfig {
     /**
      * 创建一个持久化队列
      * durable=true,表示持久化，即使RabbitMQ重启，队列也不会丢失
+     * 改造该创建订单队列，为其配置死信交换机
      * @return Queue
      */
     @Bean
     public Queue orderQueue() {
-        return new Queue(ORDER_QUEUE, true);
+        Map<String, Object> args = new HashMap<>();
+        // 当消息处理失败时，将消息路由到这个死信交换机
+        args.put("x-dead-letter-exchange", ORDER_CREATE_DLX_EXCHANGE);
+        // 指定路由键
+        args.put("x-dead-letter-routing-key", ORDER_CREATE_DEAD_ROUTING_KEY);
+        // 创建队列
+        return QueueBuilder.durable(ORDER_QUEUE).withArguments(args).build();
     }
 
     /**
@@ -116,5 +122,34 @@ public class RabbitMQConfig {
     @Bean
     public Binding orderDelayBinding(Queue orderDelayQueue, TopicExchange orderExchange) {
         return BindingBuilder.bind(orderDelayQueue).to(orderExchange).with(ORDER_DELAY_ROUTING_KEY);
+    }
+
+    /**
+     * 创建死信交换机，用于处理创建订单的死信
+     * @return Queue
+     */
+    @Bean
+    public TopicExchange orderCreateDlxExchange() {
+        return new TopicExchange(ORDER_CREATE_DLX_EXCHANGE);
+    }
+
+    /**
+     * 创建处理创建订单的死信的队列
+     * @return Queue
+     */
+    @Bean
+    public Queue orderCreateDlxQueue() {
+        return new Queue(ORDER_CREATE_DEAD_QUEUE, true);
+    }
+
+    /**
+     * 绑定死信队列和死信交换机
+     * @param orderCreateDlxQueue 队列
+     * @param orderCreateDlxExchange 死信交换机
+     * @return Binding
+     */
+    @Bean
+    public Binding orderCreateDlxBinding(Queue orderCreateDlxQueue, TopicExchange orderCreateDlxExchange) {
+        return BindingBuilder.bind(orderCreateDlxQueue).to(orderCreateDlxExchange).with(ORDER_CREATE_DEAD_ROUTING_KEY);
     }
 }
